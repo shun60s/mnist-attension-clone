@@ -36,7 +36,7 @@ from keras.callbacks import TensorBoard
 #  numpy 1.18.4
 #  keras 2.2.4
 #  tensorflow  1.12.0
-#  tensorboard 1.12.2  => 今は、動作しないよ
+
 
 
 def MultiHeadsAttModel(l=8*8, d=512, dv=64, dout=512, nv = 8 ):
