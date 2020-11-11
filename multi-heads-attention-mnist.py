@@ -73,8 +73,15 @@ def MultiHeadsAttModel(l=8*8, d=512, dv=64, dout=512, nv = 8 ):
     # softmax を取ることで正規化します  (36, 8, 8) -> (36, 8, 8)
     att = Lambda(lambda x:  K.softmax(x) , output_shape=(l, nv, nv))(att)
     
-    # att と v の内積  重みattに従ってvalue を取得　(36, 8, 8) * (36, 8, 24) -> (36, 8, 24)
-    #                                               [4,3]の理解不能。 
+    # att と v の内積  重みattに従ってvalue を取得　(batch_size, 36, 8, 8) * (batch_size, 36, 8, 24) -> (batch_size, 36, 8, 24)
+    #             K.batch_dot(x[0], x[1],axes=[4,3])　 
+    #             tensorflow_backend.pyのなかのdef batch_dot(x, y, axes=None)のソースコードを見ると、
+    #             axesが定義されて　x[0],x[1]が同じdimensionで　かつ　dimensionが2以外のときの処理は
+    #             if axes is not None:
+    #                adj_x = None if axes[0] == ndim(x) - 1 else True   #   4 is not (4-1=3), True
+    #                adj_y = True if axes[1] == ndim(y) - 1 else None   #   3 is (4-1=3), True
+    #             out = tf.matmul(x, y, adjoint_a=adj_x, adjoint_b=adj_y)
+    #　　　　　　であり、axes そのものの値を matmulに渡しているわけではない。
     out = Lambda(lambda x: K.batch_dot(x[0], x[1],axes=[4,3]),  output_shape=(l, nv, dv))([att, v])
     out = Reshape([l, d])(out)  # 8headそれぞれ24個をもとの形に戻す　(36, 8, 24) -> (36, 192)
     
