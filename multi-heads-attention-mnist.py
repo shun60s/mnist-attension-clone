@@ -41,40 +41,47 @@ from keras.callbacks import TensorBoard
 
 def MultiHeadsAttModel(l=8*8, d=512, dv=64, dout=512, nv = 8 ):
     # 実際mainから呼ばれている引数は MultiHeadsAttModel(l=6*6, d=64*3 , dv=8*3, dout=32, nv = 8 )
+    #  入力は(36=画素6x6,192=64*3)=6912
+    #
+    #  l is numbers of blocks in the feature map (36=6*6)
+    #  d is the dimension of the block  (192=64*3)
+    #  nv is the number of projections for each block: heads (8)
+    #  dv is the dimension of the linear space the input to be projected (24=8*3)
+    #  dout is the output of the block after applying this attention (32)36
     #
     #  Multi-head Attention
     #  Attention とは query によって memory(key,value) から必要な情報を選択的に引っ張ってくること
     #  memory から情報を引っ張ってくるときには、 query は key によって取得する memory を決定し、対応する value を取得します。
     #
     
-    v1 = Input(shape = (l, d))   # value(64,512)  　実際mainから呼ばれている引数は　value(36, 192)
-    q1 = Input(shape = (l, d))   # query(64,512)
-    k1 = Input(shape = (l, d))   # key(64,512)
+    v1 = Input(shape = (l, d))   # value(36, 192)
+    q1 = Input(shape = (l, d))   # query(36, 192)
+    k1 = Input(shape = (l, d))   # key(36, 192)
     
-    v2 = Dense(dv*nv, activation = "relu")(v1)   # valueに全結合ニューラルネットワークレイヤーをする。(64,512) -> (64,64*8=512)
-    q2 = Dense(dv*nv, activation = "relu")(q1)   # queryに全結合ニューラルネットワークレイヤーをする。(64,512) -> (64,64*8=512)
-    k2 = Dense(dv*nv, activation = "relu")(k1)   # keyに全結合ニューラルネットワークレイヤーをする。(64,512) -> (64,64*8=512)
+    v2 = Dense(dv*nv, activation = "relu")(v1)   # valueに全結合ニューラルネットワークレイヤーをする。(36,192) -> (36,24*8=192)
+    q2 = Dense(dv*nv, activation = "relu")(q1)   # queryに全結合ニューラルネットワークレイヤーをする。(36,192) -> (36,24*8=192)
+    k2 = Dense(dv*nv, activation = "relu")(k1)   # keyに全結合ニューラルネットワークレイヤーをする。(36,192) -> (36,24*8=192)
     
-    # MultiHeads: query, key, value をそれぞれ 64? 個に split してからそれぞれ attention を計算し、最後に concat する
-    v = Reshape([l, nv, dv])(v2)   # 形を変える　(64,64*8=512) -> (64, 8, 64)
-    q = Reshape([l, nv, dv])(q2)   # 形を変える　(64,64*8=512) -> (64, 8, 64)
-    k = Reshape([l, nv, dv])(k2)   # 形を変える　(64,64*8=512) -> (64, 8, 64)
+    # MultiHeads: query, key, value を8headそれぞれ24個に split してからそれぞれ attention を計算する
+    v = Reshape([l, nv, dv])(v2)   # 形を変える　(36,24*8=192) -> (36, 8, 24)
+    q = Reshape([l, nv, dv])(q2)   # 形を変える　(36,24*8=192) -> (36, 8, 24)
+    k = Reshape([l, nv, dv])(k2)   # 形を変える　(36,24*8=192) -> (36, 8, 24)
     
-    # q と k の内積/sqrt(8)=scaled dot-product   (64, 8, 64) * (64, 8, 64) -> (64, 8, 8)
+    # q と k の内積/sqrt(8)=scaled dot-product   (36, 8, 24) * (36, 8, 24) -> (36, 8, 8)
     att = Lambda(lambda x: K.batch_dot(x[0],x[1] ,axes=[-1,-1]) / np.sqrt(dv), output_shape=(l, nv, nv))([q,k])# l, nv, nv
     
-    # softmax を取ることで正規化します  (64, 8, 8) -> (64, 8, 8)
+    # softmax を取ることで正規化します  (36, 8, 8) -> (36, 8, 8)
     att = Lambda(lambda x:  K.softmax(x) , output_shape=(l, nv, nv))(att)
     
-    # att と v の内積  重みattに従ってvalue を取得　(64, 8, 8) * (64, 8, 64) -> (64, 8, 64)
-    #                                               [4,3] 実際には先頭に batchsize　が入る？
+    # att と v の内積  重みattに従ってvalue を取得　(36, 8, 8) * (36, 8, 24) -> (36, 8, 24)
+    #                                               [4,3]の理解不能。 
     out = Lambda(lambda x: K.batch_dot(x[0], x[1],axes=[4,3]),  output_shape=(l, nv, dv))([att, v])
-    out = Reshape([l, d])(out)  # 形を変える　(64,6, 64) -> (64, 512)
+    out = Reshape([l, d])(out)  # 8headそれぞれ24個をもとの形に戻す　(36, 8, 24) -> (36, 192)
     
     # 取得したvalueをqueryに付与
-    out = Add()([out, q1])  # out + q1  (64,512) + (64,512)
+    out = Add()([out, q1])  # out + q1  (36,192) + (36,192)
     
-    out = Dense(dout, activation = "relu")(out)  #   (64,512) -> 512
+    out = Dense(dout, activation = "relu")(out)  #   (36, 192) -> (36, 32)
     
     return  Model(inputs=[q1,k1,v1], outputs=out)
 
