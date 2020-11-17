@@ -13,7 +13,8 @@
 #--------------------------------------------------------------------------------------------------------------------------
 #
 #  「Attensionの数字文字の画像認識への応用」
-#   tf 2.x だと、動作しないかも。
+#   tensorflow 2.x だと、動作しない。
+#   k.batch_dotは動作が違うみたい。
 
 
 from keras.layers import Dense, Dropout,  Conv2D, Input, Lambda, Flatten, TimeDistributed
@@ -67,7 +68,7 @@ def MultiHeadsAttModel(l=8*8, d=512, dv=64, dout=512, nv = 8 ):
     q = Reshape([l, nv, dv])(q2)   # 形を変える　(36,24*8=192) -> (36, 8, 24)
     k = Reshape([l, nv, dv])(k2)   # 形を変える　(36,24*8=192) -> (36, 8, 24)
     
-    # q と k の内積/sqrt(8)=scaled dot-product   (36, 8, 24) * (36, 8, 24) -> (36, 8, 8)
+    # q と k の内積/sqrt(24)=scaled dot-product   (36, 8, 24) * (36, 8, 24) -> (36, 8, 8)
     att = Lambda(lambda x: K.batch_dot(x[0],x[1] ,axes=[-1,-1]) / np.sqrt(dv), output_shape=(l, nv, nv))([q,k])# l, nv, nv
     
     # softmax を取ることで正規化します  (36, 8, 8) -> (36, 8, 8)
