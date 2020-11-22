@@ -37,6 +37,7 @@ from keras.callbacks import TensorBoard
 #  numpy 1.18.4
 #  keras 2.2.4
 #  tensorflow  1.12.0
+#  tensorboard 1.12.0
 
 
 
